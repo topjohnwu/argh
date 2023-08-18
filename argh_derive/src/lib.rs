@@ -19,9 +19,7 @@ use {
     syn::{spanned::Spanned, GenericArgument, LitStr, PathArguments, Type},
 };
 
-mod args_info;
 mod errors;
-mod help;
 mod parse_attrs;
 
 /// Entrypoint for `#[derive(FromArgs)]`.
@@ -34,10 +32,8 @@ pub fn argh_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
 /// Entrypoint for `#[derive(ArgsInfo)]`.
 #[proc_macro_derive(ArgsInfo, attributes(argh))]
-pub fn args_info_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let ast = syn::parse_macro_input!(input as syn::DeriveInput);
-    let gen = args_info::impl_args_info(&ast);
-    gen.into()
+pub fn args_info_derive(_input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    TokenStream::new().into()
 }
 
 /// Transform the input into a token stream containing any generated implementations,
@@ -302,7 +298,7 @@ fn impl_from_args_struct(
 
 fn impl_from_args_struct_from_args<'a>(
     errors: &Errors,
-    type_attrs: &TypeAttrs,
+    _type_attrs: &TypeAttrs,
     fields: &'a [StructField<'a>],
 ) -> TokenStream {
     let init_fields = declare_local_storage_for_from_args_fields(fields);
@@ -363,10 +359,6 @@ fn impl_from_args_struct_from_args<'a>(
         quote_spanned! { impl_span => None }
     };
 
-    // Identifier referring to a value containing the name of the current command as an `&[&str]`.
-    let cmd_name_str_array_ident = syn::Ident::new("__cmd_name", impl_span);
-    let help = help::help(errors, cmd_name_str_array_ident, type_attrs, fields, subcommand);
-
     let method_impl = quote_spanned! { impl_span =>
         fn from_args(__cmd_name: &[&str], __args: &[&str])
             -> std::result::Result<Self, argh::EarlyExit>
@@ -395,7 +387,7 @@ fn impl_from_args_struct_from_args<'a>(
                     last_is_greedy: #last_positional_is_greedy,
                 },
                 #parse_subcommands,
-                &|| #help,
+                &|| { String::new() },
             )?;
 
             let mut #missing_requirements_ident = argh::MissingRequirements::default();
@@ -483,10 +475,6 @@ fn impl_from_args_struct_redact_arg_values<'a>(
         quote! { "no subcommand name" }
     };
 
-    // Identifier referring to a value containing the name of the current command as an `&[&str]`.
-    let cmd_name_str_array_ident = syn::Ident::new("__cmd_name", impl_span);
-    let help = help::help(errors, cmd_name_str_array_ident, type_attrs, fields, subcommand);
-
     let method_impl = quote_spanned! { impl_span =>
         fn redact_arg_values(__cmd_name: &[&str], __args: &[&str]) -> std::result::Result<Vec<String>, argh::EarlyExit> {
             #( #init_fields )*
@@ -511,7 +499,7 @@ fn impl_from_args_struct_redact_arg_values<'a>(
                     last_is_greedy: #last_positional_is_greedy,
                 },
                 #redact_subcommands,
-                &|| #help,
+                &|| { String::new() },
             )?;
 
             let mut #missing_requirements_ident = argh::MissingRequirements::default();
@@ -597,8 +585,7 @@ fn top_or_sub_cmd_impl(
     type_attrs: &TypeAttrs,
     generic_args: &syn::Generics,
 ) -> TokenStream {
-    let description =
-        help::require_description(errors, name.span(), &type_attrs.description, "type");
+    let description = String::new();
     let (impl_generics, ty_generics, where_clause) = generic_args.split_for_impl();
     if type_attrs.is_subcommand.is_none() {
         // Not a subcommand
